@@ -307,7 +307,7 @@ void remove_utmp_entry(struct utmp *entry) {
 void xauth(const char* display_name, const char* shell, const char* dir)
 {
 	char xauthority[256];
-	snprintf(xauthority, 256, "%s/%s", dir, ".lyxauth");
+	snprintf(xauthority, 256, "%s/%s", dir, ".local/share/lyxauth");
 	setenv("XAUTHORITY", xauthority, 1);
 	setenv("DISPLAY", display_name, 1);
 
