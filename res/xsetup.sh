@@ -11,12 +11,12 @@ case $SHELL in
     [ -z "$BASH" ] && exec $SHELL $0 "$@"
     set +o posix
     [ -f /etc/profile ] && . /etc/profile
-    if [ -f $HOME/.bash_profile ]; then
-      . $HOME/.bash_profile
-    elif [ -f $HOME/.bash_login ]; then
-      . $HOME/.bash_login
-    elif [ -f $HOME/.profile ]; then
-      . $HOME/.profile
+    if [ -f $XDG_CONFIG_HOME/bash/bash_profile ]; then
+      . $XDG_CONFIG_HOME/bash/bash_profile
+    elif [ -f $XDG_CONFIG_HOME/bash/bash_login ]; then
+      . $XDG_CONFIG_HOME/bash/bash_login
+    elif [ -f $XDG_CONFIG_HOME/bash/profile ]; then
+      . $XDG_CONFIG_HOME/bash/profile
     fi
     ;;
 */zsh)
