@@ -213,22 +213,14 @@ void env_init(struct passwd* pwd)
 	char* lang = getenv("LANG");
 	// clean env
 	environ[0] = NULL;
-
-	if (term != NULL)
-	{
-		setenv("TERM", term, 1);
-	}
-	else
-	{
-		setenv("TERM", "linux", 1);
-	}
-
+	
+	setenv("TERM", term ? term : "linux", 1);
 	setenv("HOME", pwd->pw_dir, 1);
 	setenv("PWD", pwd->pw_dir, 1);
 	setenv("SHELL", pwd->pw_shell, 1);
 	setenv("USER", pwd->pw_name, 1);
 	setenv("LOGNAME", pwd->pw_name, 1);
-	setenv("LANG", lang, 1);
+	setenv("LANG", lang ? lang : "C", 1);
 
 	// Set PATH if specified in the configuration
 	if (strlen(config.path))
@@ -242,15 +234,8 @@ void env_init(struct passwd* pwd)
 	}
 }
 
-void env_xdg(const char* tty_id, const enum display_server display_server)
+void env_xdg_session(const enum display_server display_server)
 {
-	char user[15];
-	snprintf(user, 15, "/run/user/%d", getuid());
-	setenv("XDG_RUNTIME_DIR", user, 0);
-	setenv("XDG_SESSION_CLASS", "user", 0);
-	setenv("XDG_SEAT", "seat0", 0);
-	setenv("XDG_VTNR", tty_id, 0);
-
 	switch (display_server)
 	{
 		case DS_WAYLAND:
@@ -270,6 +255,18 @@ void env_xdg(const char* tty_id, const enum display_server display_server)
 			break;
 		}
 	}
+}
+
+void env_xdg(const char* tty_id, const char* desktop_name)
+{
+    char user[15];
+    snprintf(user, 15, "/run/user/%d", getuid());
+    setenv("XDG_RUNTIME_DIR", user, 0);
+    setenv("XDG_SESSION_CLASS", "user", 0);
+    setenv("XDG_SESSION_ID", "1", 0);
+    setenv("XDG_SESSION_DESKTOP", desktop_name, 0);
+    setenv("XDG_SEAT", "seat0", 0);
+    setenv("XDG_VTNR", tty_id, 0);
 }
 
 void add_utmp_entry(
@@ -304,8 +301,49 @@ void remove_utmp_entry(struct utmp *entry) {
 	endutent();
 }
 
-void xauth(const char* display_name, const char* shell, const char* dir)
+void xauth(const char* display_name, const char* shell, char* pwd)
 {
+	const char* xauth_file = "lyxauth";
+	char* xauth_dir = getenv("XDG_RUNTIME_DIR");
+	if ((xauth_dir == NULL) || (*xauth_dir == '\0'))
+	{
+		xauth_dir = getenv("XDG_CONFIG_HOME");
+		struct stat sb;
+		if ((xauth_dir == NULL) || (*xauth_dir == '\0'))
+		{
+			xauth_dir = strdup(pwd);
+			strcat(xauth_dir, "/.config");
+			stat(xauth_dir, &sb);
+			if (S_ISDIR(sb.st_mode))
+			{
+				strcat(xauth_dir, "/ly");
+			}
+			else
+			{
+				xauth_dir = pwd;
+				xauth_file = ".lyxauth";
+			}
+		}
+		else
+		{
+			strcat(xauth_dir, "/ly");
+		}
+
+		// If .config/ly/ or XDG_CONFIG_HOME/ly/ doesn't exist and can't create the directory, use pwd
+		// Passing pwd beforehand is safe since stat will always evaluate false
+		stat(xauth_dir, &sb);
+		if (!S_ISDIR(sb.st_mode) && mkdir(xauth_dir, 0777) == -1)
+		{
+			xauth_dir = pwd;
+			xauth_file = ".lyxauth";
+		}
+	}
+
+	// trim trailing slashes
+	int i = strlen(xauth_dir) - 1;
+	while (xauth_dir[i] == '/') i--;
+	xauth_dir[i + 1] = '\0';
+
 	char xauthority[256];
 	snprintf(xauthority, 256, "%s/%s", dir, ".local/share/lyxauth");
 	setenv("XAUTHORITY", xauthority, 1);
@@ -343,18 +381,10 @@ void xorg(
 	const char* vt,
 	const char* desktop_cmd)
 {
-	// generate xauthority file
-	const char* xauth_dir = getenv("XDG_CONFIG_HOME");
-
-	if ((xauth_dir == NULL) || (*xauth_dir == '\0'))
-	{
-		xauth_dir = pwd->pw_dir;
-	}
-
 	char display_name[4];
 
 	snprintf(display_name, 3, ":%d", get_free_display());
-	xauth(display_name, pwd->pw_shell, xauth_dir);
+	xauth(display_name, pwd->pw_shell, pwd->pw_dir);
 
 	// start xorg
 	pid_t pid = fork();
@@ -471,6 +501,13 @@ void auth(
 {
 	int ok;
 
+    char tty_id [3];
+    snprintf(tty_id, 3, "%d", config.tty);
+
+    // Add XDG environment variables
+    env_xdg_session(desktop->display_server[desktop->cur]);
+    env_xdg(tty_id, desktop->list_simple[desktop->cur]);
+
 	// open pam session
 	const char* creds[2] = {login->text, password->text};
 	struct pam_conv conv = {login_conv, creds};
@@ -531,7 +568,7 @@ void auth(
 	if (pwd->pw_shell[0] == '\0')
 	{
 		setusershell();
-		
+
 		char* shell = getusershell();
 
 		if (shell != NULL)
@@ -552,7 +589,7 @@ void auth(
 
 	if (pid == 0)
 	{
-		// set user info 
+		// set user info
 		ok = initgroups(pwd->pw_name, pwd->pw_gid);
 
 		if (ok != 0)
@@ -578,10 +615,7 @@ void auth(
 		}
 
 		// get a display
-		char tty_id [3];
 		char vt[5];
-
-		snprintf(tty_id, 3, "%d", config.tty);
 		snprintf(vt, 5, "vt%d", config.tty);
 
 		// set env
@@ -599,9 +633,6 @@ void auth(
 		{
 			putenv(env[i]);
 		}
-
-		// add xdg variables
-		env_xdg(tty_id, desktop->display_server[desktop->cur]);
 
 		// execute
 		int ok = chdir(pwd->pw_dir);
@@ -658,21 +689,21 @@ void auth(
 
 	// close pam session
 	ok = pam_do(pam_close_session, handle, 0, buf);
-	
+
 	if (ok != PAM_SUCCESS)
 	{
 		return;
 	}
 
 	ok = pam_do(pam_setcred, handle, PAM_DELETE_CRED, buf);
-	
+
 	if (ok != PAM_SUCCESS)
 	{
 		return;
 	}
 
 	ok = pam_end(handle, 0);
-	
+
 	if (ok != PAM_SUCCESS)
 	{
 		pam_diagnose(ok, buf);

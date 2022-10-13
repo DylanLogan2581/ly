@@ -1,3 +1,4 @@
+
 # Ly - a TUI display manager
 ![Ly screenshot](https://user-images.githubusercontent.com/5473047/88958888-65efbf80-d2a1-11ea-8ae5-3f263bce9cce.png "Ly screenshot")
 
@@ -15,13 +16,18 @@ Ly is a lightweight TUI (ncurses-like) display manager for Linux and BSD.
  - tput
  - shutdown
 
-On Debian-based distros running `apt install build-essential libpam0g-dev libxcb-xkb-dev` as root should install all the dependencies for you.
+On Debian-based distros running `apt install build-essential libpam0g-dev libxcb-xkb-dev` as root should install all the dependencies for you. 
+For Fedora try running `dnf install make automake gcc gcc-c++ kernel-devel pam-devel libxcb-devel`
 
 ## Support
 The following desktop environments were tested with success
+
+ - awesome
+ - bspwm
  - budgie
  - cinnamon
  - deepin
+ - dwm 
  - enlightenment
  - gnome
  - i3
@@ -29,11 +35,14 @@ The following desktop environments were tested with success
  - lxde
  - lxqt
  - mate
- - sway
- - xfce
+ - maxx 
  - pantheon
- - maxx
- - windowmaker
+ - qtile
+ - spectrwm
+ - sway
+ - windowmaker 
+ - xfce
+ - xmonad
 
 Ly should work with any X desktop environment, and provides
 basic wayland support (sway works very well, for example).
@@ -47,34 +56,86 @@ changing the source code won't be necessary :)
 ## Cloning and Compiling
 Clone the repository
 ```
-git clone --recurse-submodules https://github.com/nullgemm/ly.git
+$ git clone --recurse-submodules https://github.com/fairyglade/ly
+```
+
+Change the directory to ly
+```
+$ cd ly
 ```
 
 Compile
 ```
-make
+$ make
 ```
 
 Test in the configured tty (tty2 by default)
 or a terminal emulator (but desktop environments won't start)
 ```
-sudo make run
+# make run
 ```
 
 Install Ly and the provided systemd service file
 ```
-sudo make install
+# make install installsystemd
 ```
 
 Enable the service
 ```
-sudo systemctl enable ly.service
+# systemctl enable ly.service
 ```
 
 If you need to switch between ttys after Ly's start you also have to
 disable getty on Ly's tty to prevent "login" from spawning on top of it
 ```
-sudo systemctl disable getty@tty2.service
+# systemctl disable getty@tty2.service
+```
+
+### OpenRC
+
+Clone, compile and test.
+
+Install Ly and the provided OpenRC service
+```
+# make install installopenrc
+```
+
+Enable the service
+```
+# rc-update add ly
+```
+
+You can edit which tty Ly will start on by editing the `tty` option in the configuration file.
+
+If you choose a tty that already has a login/getty running (has a basic login prompt), then you have to disable the getty so it doesn't respawn on top of ly
+```
+# rc-update del agetty.tty2
+```
+
+### runit
+
+```
+$ make
+# make install installrunit
+# ln -s /etc/sv/ly /var/service/
+```
+
+Disable your existing display manager service if need be e.g.:
+
+```
+# rm /var/service/lxdm
+```
+
+If you are running on `tty2` (check your `/etc/ly/config.ini`) you can disable e.g. `agetty` running there:
+
+```
+# rm /var/service/agetty-tty2
+```
+
+## Arch Linux Installation
+You can install ly from the [AUR](https://aur.archlinux.org/packages/ly), using yay for example:
+``` 
+$ yay -S ly
 ```
 
 ## Configuration
@@ -89,12 +150,10 @@ while on the desktop field (above the login field).
 ## .xinitrc
 If your .xinitrc doesn't work make sure it is executable and includes a shebang.
 This file is supposed to be a shell script! Quoting from xinit's man page:
-```
-If no specific client program is given on the command line, xinit will look for
-a file in the user's home directory called .xinitrc to run as a shell script to
-start up client programs.
-```
-On ArchLinux, the example .xinitrc (/etc/X11/xinit/xinitrc) starts like this:
+
+> If no specific client program is given on the command line, xinit will look for a file in the user's home directory called .xinitrc to run as a shell script to start up client programs.
+
+On Arch Linux, the example .xinitrc (/etc/X11/xinit/xinitrc) starts like this:
 ```
 #!/bin/sh
 ```

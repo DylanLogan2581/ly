@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <ctype.h>
 
 void handle_desktop(void* input_struct, struct tb_event* event)
 {
@@ -76,13 +77,14 @@ void handle_text(void* input_struct, struct tb_event* event)
 void input_desktop(struct desktop* target)
 {
 	target->list = NULL;
+    target->list_simple = NULL;
 	target->cmd = NULL;
 	target->display_server = NULL;
 	target->cur = 0;
 	target->len = 0;
 
 	input_desktop_add(target, strdup(lang.shell), strdup(""), DS_SHELL);
-	input_desktop_add(target, strdup(lang.xinitrc), strdup("~/.xinitrc"), DS_XINITRC);
+	input_desktop_add(target, strdup(lang.xinitrc), strdup(config.xinitrc), DS_XINITRC);
 #if 0
 	input_desktop_add(target, strdup(lang.wayland), strdup(""), DS_WAYLAND);
 #endif
@@ -176,7 +178,8 @@ void input_desktop_add(
 {
 	++(target->len);
 	target->list = realloc(target->list, target->len * (sizeof (char*)));
-	target->cmd = realloc(target->cmd, target->len * (sizeof (char*)));
+    target->list_simple = realloc(target->list_simple, target->len * (sizeof (char*)));
+    target->cmd = realloc(target->cmd, target->len * (sizeof (char*)));
 	target->display_server = realloc(
 		target->display_server,
 		target->len * (sizeof (enum display_server)));
@@ -190,8 +193,25 @@ void input_desktop_add(
 		return;
 	}
 
-	target->list[target->cur] = name;
-	target->cmd[target->cur] = cmd;
+    target->list[target->cur] = name;
+
+    int name_len = strlen(name);
+    char* name_simple = malloc(name_len);
+
+    memcpy(name_simple, name, name_len);
+
+    if (strstr(name_simple, " ") != NULL)
+    {
+        name_simple = strtok(name_simple, " ");
+    }
+
+    for (int i = 0; i < name_len; i++)
+    {
+        name_simple[i] = tolower(name_simple[i]);
+    }
+
+    target->list_simple[target->cur] = name_simple;
+    target->cmd[target->cur] = cmd;
 	target->display_server[target->cur] = display_server;
 }
 
